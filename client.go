@@ -1,4 +1,4 @@
-package gofetch
+package gohans
 
 import (
 	"bytes"
@@ -9,11 +9,14 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"net/url"
+	"time"
 )
 
 var (
 	DecodeError               = errors.New("error decoding response")
 	UnexpectedStatusCodeError = errors.New("unexpected status code")
+	MissingURLError           = errors.New("URL is missing")
 )
 
 type RequestOption func(*Client)
@@ -51,6 +54,13 @@ func WithTLSClientConfig(tlsConfig *tls.Config) RequestOption {
 	}
 }
 
+// WithTimeout sets a request timeout on the client
+func WithTimeout(td time.Duration) RequestOption {
+	return func(c *Client) {
+		c.httpClient.Timeout = td
+	}
+}
+
 // WithHTTPClient sets the http client on the client
 // Warning: This will override any other transport settings set prior to this
 func WithHTTPClient(client *http.Client) RequestOption {
@@ -72,6 +82,20 @@ func WithLogger(logger *slog.Logger) RequestOption {
 
 func (c *Client) Do(ctx context.Context, r *Request) ([]byte, error) {
 	var br bytes.Buffer
+
+	if r.URL == "" {
+		c.logger.Error("URL is not set")
+
+		return nil, MissingURLError
+	}
+
+	url, err := url.Parse(r.URL)
+	if err != nil {
+		c.logger.Error("Malformed URL", "url", r.URL)
+
+		return nil, err
+	}
+
 	if r.Body != nil {
 		err := json.NewEncoder(&br).Encode(r.Body)
 		if err != nil {
@@ -80,7 +104,7 @@ func (c *Client) Do(ctx context.Context, r *Request) ([]byte, error) {
 		}
 	}
 
-	req, err := http.NewRequestWithContext(ctx, r.Method, r.URL.String(), &br)
+	req, err := http.NewRequestWithContext(ctx, r.Method, url.String(), &br)
 	if err != nil {
 		c.logger.Error("error creating request", "error", err)
 		return nil, err
@@ -95,10 +119,10 @@ func (c *Client) Do(ctx context.Context, r *Request) ([]byte, error) {
 		c.logger.Error("error sending request", "error", err)
 		return nil, err
 	}
+	defer resp.Body.Close()
+
 	var buf bytes.Buffer
 	tee := io.TeeReader(resp.Body, &buf)
-
-	defer resp.Body.Close()
 
 	r.statusCode = resp.StatusCode
 

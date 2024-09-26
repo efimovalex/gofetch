@@ -1,4 +1,4 @@
-module github.com/efimovalex/gofetch
+module github.com/efimovalex/gohans
 
 go 1.23.1
 

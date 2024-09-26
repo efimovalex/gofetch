@@ -1,16 +1,20 @@
-package gofetch
+package gohans
 
 import (
 	"context"
 	"fmt"
 	"net/http"
-	"net/url"
+)
+
+const (
+	JSONContentType = "application/json"
+	XMLContentType  = "application/xml"
 )
 
 var (
 	defaultHeaders = map[string]string{
-		"Content-Type": "application/json",
-		"Accept":       "application/json",
+		"Content-Type": JSONContentType,
+		"Accept":       JSONContentType,
 	}
 )
 
@@ -27,12 +31,13 @@ type RequestClient interface {
 // Request is a struct that represents a request intent
 type Request struct {
 	Method  string
-	URL     url.URL
+	URL     string
 	Headers map[string]string
 	Body    any
 
 	//
-	retries int
+	retries     int
+	contentType string
 
 	// Response and ErrorResponse are used to store the response and error response
 	expectedStatusCode int
@@ -51,6 +56,7 @@ func NewRequest() *Request {
 		Method:             http.MethodGet,
 		errorResponse:      &Error{},
 		expectedStatusCode: 200,
+		contentType:        JSONContentType,
 		Headers:            defaultHeaders,
 	}
 }
@@ -70,7 +76,7 @@ func (r *Request) SetAuthToken(token string) *Request {
 }
 
 // SetURL sets the URL of the request
-func (r *Request) SetURL(url url.URL) *Request {
+func (r *Request) SetURL(url string) *Request {
 	r.URL = url
 
 	return r
@@ -115,12 +121,16 @@ func (r *Request) EnableRetries(retries int) *Request {
 func (r *Request) AddHeader(key, value string) *Request {
 	r.Headers[key] = value
 
+	if key == "Content-Type" {
+		r.contentType = value
+	}
+
 	return r
 }
 
 // Do sends the request and returns the response body as a byte slice
 // This will retry the request if the number of retries is set
-func (r *Request) Do(ctx context.Context, c RequestClient) ([]byte, error) {
+func (r *Request) Send(ctx context.Context, c RequestClient) ([]byte, error) {
 	if r.retries > 0 {
 		for i := 0; i < r.retries; i++ {
 			r.AddHeader("Retry-Count", fmt.Sprint(i))

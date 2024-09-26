@@ -1,4 +1,4 @@
-package gofetch
+package gohans
 
 import (
 	"context"
@@ -19,57 +19,34 @@ func TLSConfig(ctx context.Context, TLSCA, TLSCert, TLSKey string, insecureSkipV
 		return nil, errors.New("TLS Key and Cert file paths not provided, TLS not configured")
 	}
 
-	tlsConfig := &tls.Config{
+	tlsConf := &tls.Config{
 		InsecureSkipVerify: insecureSkipVerify,
-		Renegotiation:      tls.RenegotiateNever,
+		Renegotiation:      tls.RenegotiateOnceAsClient,
+		MinVersion:         tls.VersionTLS12,
 	}
 
 	if TLSCA != "" {
-		pool, err := makeCertPool([]string{TLSCA})
+		pool := x509.NewCertPool()
+		pem, err := os.ReadFile(TLSCA)
 		if err != nil {
-			logger.Error("Error loading CA certificate", "error", err)
-
-			return nil, err
-		}
-		tlsConfig.RootCAs = pool
-	}
-
-	if TLSCert != "" && TLSKey != "" {
-		err := loadCertificate(tlsConfig, TLSCert, TLSKey)
-		if err != nil {
-			logger.Error("Error loading certificate and key", "error", err)
-
-			return nil, err
-		}
-	}
-
-	return tlsConfig, nil
-}
-
-// makeCertPool - make Cert pool and append them
-func makeCertPool(certFiles []string) (*x509.CertPool, error) {
-	pool := x509.NewCertPool()
-	for _, certFile := range certFiles {
-		pem, err := os.ReadFile(certFile)
-		if err != nil {
-			return nil, fmt.Errorf("could not read certificate %s: %s", certFile, err)
+			return nil, fmt.Errorf("could not read certificate %s: %s", TLSCA, err)
 		}
 		ok := pool.AppendCertsFromPEM(pem)
 		if !ok {
-			return nil, fmt.Errorf("could not parse any PEM certificates %s: %s", certFile, err)
+			return nil, fmt.Errorf("could not parse any PEM certificates %s: %s", TLSCA, err)
 		}
-	}
-	return pool, nil
-}
-
-// loadCertificate - Load the certificates for SSL connection
-func loadCertificate(config *tls.Config, certFile, keyFile string) error {
-	cert, err := tls.LoadX509KeyPair(certFile, keyFile)
-	if err != nil {
-		return fmt.Errorf(
-			"could not load keypair %s:%s: %s", certFile, keyFile, err)
+		tlsConf.RootCAs = pool
 	}
 
-	config.Certificates = []tls.Certificate{cert}
-	return nil
+	if TLSCert != "" && TLSKey != "" {
+		cert, err := tls.LoadX509KeyPair(TLSCert, TLSKey)
+		if err != nil {
+			return nil, fmt.Errorf(
+				"could not load keypair %s:%s: %s", TLSCert, TLSKey, err)
+		}
+
+		tlsConf.Certificates = []tls.Certificate{cert}
+	}
+
+	return tlsConf, nil
 }

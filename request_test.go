@@ -1,4 +1,4 @@
-package gofetch
+package gohans
 
 import (
 	"context"
@@ -32,9 +32,9 @@ func TestRequest_SetURL(t *testing.T) {
 	request := NewRequest()
 	u, _ := url.Parse("http://example.com")
 
-	request.SetURL(*u)
+	request.SetURL(u.String())
 
-	assert.Equal(t, request.URL.String(), "http://example.com")
+	assert.Equal(t, request.URL, "http://example.com")
 }
 
 func TestRequest_SetExpectedStatusCode(t *testing.T) {
@@ -87,7 +87,7 @@ func TestRequest_SetRequestBody(t *testing.T) {
 	assert.Equal(t, request.Body, "body")
 }
 
-func TestRequest_Do(t *testing.T) {
+func TestRequest_Send(t *testing.T) {
 	ctx := context.Background()
 	client := NewClient(ctx)
 
@@ -111,12 +111,13 @@ func TestRequest_Do(t *testing.T) {
 
 		r := NewRequest().
 			SetMethod("GET").
-			SetURL(*u).
+			SetURL(u.String()).
 			SetAuthToken("token").
+			AddHeader("Content-Type", "application/json").
 			SetExpectedStatusCode(200).
 			SetWantedResponseBody(&ok)
 
-		body, err := r.Do(ctx, client)
+		body, err := r.Send(ctx, client)
 
 		assert.Nil(t, err)
 		assert.Equal(t, `{"status": "ok"}`, string(body))
@@ -141,12 +142,12 @@ func TestRequest_Do(t *testing.T) {
 
 		r := NewRequest().
 			SetMethod("GET").
-			SetURL(*u).
+			SetURL(u.String()).
 			SetExpectedStatusCode(200).
 			SetWantedResponseBody(&ok).
 			SetErrorResponseBody(&e)
 
-		body, err := r.Do(ctx, client)
+		body, err := r.Send(ctx, client)
 
 		assert.Error(t, err)
 		assert.Equal(t, `{"error": "error creating response"}`, string(body))
@@ -154,6 +155,38 @@ func TestRequest_Do(t *testing.T) {
 		assert.Equal(t, &ok, r.GetResponse())
 		assert.Equal(t, &e, r.GetErrorResponse())
 		assert.Equal(t, 500, r.GetStatusCode())
+	})
+
+	t.Run("missing url", func(t *testing.T) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			assert.Equal(t, "Bearer token", r.Header.Get("Authorization"))
+			assert.Equal(t, "GET", r.Method)
+			assert.Equal(t, "/test", r.URL.Path)
+
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte(`{"status": "ok"}`))
+		}))
+		defer server.Close()
+
+		u, _ := url.Parse(server.URL)
+		u.Path = "/test"
+
+		var ok struct {
+			Status string `json:"status"`
+		}
+
+		r := NewRequest().
+			SetMethod("GET").
+			SetAuthToken("token").
+			SetExpectedStatusCode(200).
+			SetWantedResponseBody(&ok)
+
+		body, err := r.Send(ctx, client)
+
+		assert.Error(t, err)
+		assert.Equal(t, MissingURLError, err)
+
+		assert.Empty(t, body)
 	})
 
 	t.Run("retry", func(t *testing.T) {
@@ -178,14 +211,14 @@ func TestRequest_Do(t *testing.T) {
 
 		r := NewRequest().
 			SetMethod("GET").
-			SetURL(*u).
+			SetURL(u.String()).
 			SetExpectedStatusCode(200).
 			SetWantedResponseBody(&ok).
 			EnableRetries(3)
 
 		assert.Equal(t, 3, r.retries)
 
-		body, err := r.Do(ctx, client)
+		body, err := r.Send(ctx, client)
 
 		assert.Nil(t, err)
 		assert.Equal(t, `{"status": "ok"}`, string(body))
@@ -227,12 +260,12 @@ func TestRequest_Do(t *testing.T) {
 
 		r := NewRequest().
 			SetMethod("GET").
-			SetURL(*u).
+			SetURL(u.String()).
 			SetAuthToken("token").
 			SetExpectedStatusCode(200).
 			SetWantedResponseBody(&ok)
 
-		body, err := r.Do(ctx, client)
+		body, err := r.Send(ctx, client)
 
 		assert.Nil(t, err)
 		assert.Equal(t, `{"status": "ok"}`, string(body))

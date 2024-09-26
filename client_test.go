@@ -1,4 +1,4 @@
-package gofetch
+package gohans
 
 import (
 	"crypto/tls"
@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"testing"
+	"time"
 
 	"context"
 
@@ -53,7 +54,7 @@ func TestWithLogger(t *testing.T) {
 	assert.Equal(t, client.logger, logger)
 }
 
-func TestDo(t *testing.T) {
+func TestSend(t *testing.T) {
 	ctx := context.Background()
 
 	client := NewClient(ctx)
@@ -76,16 +77,45 @@ func TestDo(t *testing.T) {
 
 		body, err := NewRequest().
 			SetMethod(http.MethodGet).
-			SetURL(*u).
+			SetURL(u.String()).
 			SetExpectedStatusCode(http.StatusOK).
 			SetErrorResponseBody(&Error{}).
 			SetWantedResponseBody(&ok).
-			Do(ctx, client)
+			Send(ctx, client)
 
 		assert.NotNil(t, body)
 		assert.Nil(t, err)
 		assert.Equal(t, `{"status": "ok"}`, string(body))
 		assert.Equal(t, "ok", ok.Status)
+	})
+
+	t.Run("with timeout", func(t *testing.T) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			time.Sleep(time.Second * 3)
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte(`{"status": "ok"}`))
+		}))
+		client := NewClient(ctx, WithTimeout(time.Second))
+		defer server.Close()
+
+		u, err := url.Parse(server.URL)
+		assert.Nil(t, err)
+
+		var ok struct {
+			Status string `json:"status"`
+		}
+
+		body, err := NewRequest().
+			SetMethod(http.MethodGet).
+			SetURL(u.String()).
+			SetExpectedStatusCode(http.StatusOK).
+			SetErrorResponseBody(&Error{}).
+			SetWantedResponseBody(&ok).
+			Send(ctx, client)
+
+		assert.Nil(t, body)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "context deadline exceeded ")
 	})
 
 	t.Run("http server failure", func(t *testing.T) {
@@ -105,12 +135,12 @@ func TestDo(t *testing.T) {
 
 		r := NewRequest().
 			SetMethod(http.MethodGet).
-			SetURL(*u).
+			SetURL(u.String()).
 			SetExpectedStatusCode(http.StatusOK).
 			SetErrorResponseBody(&e).
 			SetWantedResponseBody(&ok)
 
-		body, err := r.Do(ctx, client)
+		body, err := r.Send(ctx, client)
 
 		assert.NotNil(t, body)
 		assert.Equal(t, UnexpectedStatusCodeError, err)
@@ -137,12 +167,12 @@ func TestDo(t *testing.T) {
 
 		r := NewRequest().
 			SetMethod(http.MethodGet).
-			SetURL(*u).
+			SetURL(u.String()).
 			SetExpectedStatusCode(http.StatusOK).
 			SetErrorResponseBody(&e).
 			SetWantedResponseBody(&ok)
 
-		body, err := r.Do(ctx, client)
+		body, err := r.Send(ctx, client)
 
 		assert.NotNil(t, body)
 		assert.Equal(t, UnexpectedStatusCodeError, err)
@@ -169,12 +199,12 @@ func TestDo(t *testing.T) {
 
 		r := NewRequest().
 			SetMethod(http.MethodGet).
-			SetURL(*u).
+			SetURL(u.String()).
 			SetExpectedStatusCode(http.StatusOK).
 			SetErrorResponseBody(&e).
 			SetWantedResponseBody(&ok)
 
-		body, err := r.Do(ctx, client)
+		body, err := r.Send(ctx, client)
 
 		assert.NotNil(t, body)
 		assert.EqualError(t, err, "invalid character ']' looking for beginning of object key string")
@@ -199,12 +229,12 @@ func TestDo(t *testing.T) {
 
 		r := NewRequest().
 			SetMethod(http.MethodGet).
-			SetURL(*u).
+			SetURL(u.String()).
 			SetExpectedStatusCode(http.StatusOK).
 			SetErrorResponseBody(&e).
 			SetWantedResponseBody(&ok)
 
-		body, err := r.Do(ctx, client)
+		body, err := r.Send(ctx, client)
 
 		assert.NotNil(t, body)
 		assert.EqualError(t, err, "invalid character ']' looking for beginning of object key string")
@@ -215,9 +245,10 @@ func TestDo(t *testing.T) {
 	t.Run("error encoding request", func(t *testing.T) {
 		r := NewRequest().
 			SetMethod(http.MethodGet).
+			SetURL("http://localhost").
 			SetRequestBody(struct{ A float64 }{A: math.Inf(0)})
 
-		body, err := r.Do(ctx, client)
+		body, err := r.Send(ctx, client)
 		assert.Nil(t, body)
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "json: unsupported value")
@@ -226,9 +257,9 @@ func TestDo(t *testing.T) {
 	t.Run("error doing request", func(t *testing.T) {
 		r := NewRequest().
 			SetMethod(http.MethodGet).
-			SetURL(url.URL{Scheme: "w", Host: "localhost:0"})
+			SetURL("w://localhost:0")
 
-		body, err := r.Do(ctx, client)
+		body, err := r.Send(ctx, client)
 		assert.Nil(t, body)
 		assert.Error(t, err)
 		assert.Equal(t, err.Error(), "Get \"w://localhost:0\": unsupported protocol scheme \"w\"")
@@ -236,12 +267,23 @@ func TestDo(t *testing.T) {
 
 	t.Run("error invalid method", func(t *testing.T) {
 		r := NewRequest().
+			SetURL("http://localhost").
 			SetMethod("💀")
 
-		body, err := r.Do(ctx, client)
+		body, err := r.Send(ctx, client)
 		assert.Nil(t, body)
 		assert.Error(t, err)
 		assert.Equal(t, err.Error(), "net/http: invalid method \"💀\"")
+	})
+
+	t.Run("error invalid url", func(t *testing.T) {
+		r := NewRequest().
+			SetURL("💀://localhost")
+
+		body, err := r.Send(ctx, client)
+		assert.Nil(t, body)
+		assert.Error(t, err)
+		assert.Equal(t, err.Error(), "parse \"💀://localhost\": first path segment in URL cannot contain colon")
 	})
 
 }

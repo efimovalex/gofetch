@@ -1,4 +1,4 @@
-package gofetch
+package gohans
 
 import (
 	"io"
@@ -10,7 +10,6 @@ import (
 )
 
 func Test_decodeResponse(t *testing.T) {
-
 	t.Run("json", func(t *testing.T) {
 
 		body := `{"key": "value"}`
