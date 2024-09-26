@@ -9,8 +9,7 @@ GoHans is also perfect for use with the Adapter Design Pattern, making it easy t
 # Table of Contents
 1. [Client features](#client-features)
 2. [Request features](#request-features)
-3. [Usage](#usage)
-4. [Fourth Example](#fourth-examplehttpwwwfourthexamplecom)
+3. [Usage example](#usage)
 
 ## Client features:
 
