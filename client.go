@@ -44,7 +44,12 @@ func NewClient(ctx context.Context, opts ...RequestOption) *Client {
 }
 
 // WithTLSClientConfig sets the TLSClientConfig on the http client
+// If the TLS min version is not set, we will set it to TLS 1.2
 func WithTLSClientConfig(tlsConfig *tls.Config) RequestOption {
+	if tlsConfig.MinVersion == 0 {
+		tlsConfig.MinVersion = tls.VersionTLS12
+	}
+
 	return func(c *Client) {
 		t := &http.Transport{
 			TLSClientConfig: tlsConfig,
