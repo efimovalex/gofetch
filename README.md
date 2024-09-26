@@ -1,4 +1,4 @@
-# GoHan(dler)s
+# Go HTTP Application Networking Simplified (GOHANS)
 
 GoHans is a lightweight, concise, robust and intuitive Go library designed to simplify making HTTP requests. Whether you're fetching data from an API, posting JSON or XML, or working with headers, GoHans offers a streamlined, easy-to-use interface that builds on Go’s native net/http package. With built-in support for TLS configuration, timeouts, retries, and automatic success/error message decoding, GoHans makes managing HTTP communication effortless. GoHans empowers developers to efficiently interact with web services while keeping code clean and concise. Perfect for building scalable and performant applications, GoHans makes HTTP requests in Go effortless.
 
@@ -14,7 +14,7 @@ For detailed usage examples, please refer to the [examples](./examples) package 
 You can configure the client's TLS settings directly by loading a custom tlsConfig:
 
 ```
-tlsc := gohans.TLSConfig(ctx, caCertPath, certPath, keyPath)
+tlsc := NewTLSConfig(ctx, caCertPath, certPath, keyPath)
 client := gohans.NewClient(ctx, WithTLSClientConfig(tlsc))
 ```
 

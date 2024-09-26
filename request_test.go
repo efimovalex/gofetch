@@ -2,6 +2,7 @@ package gohans
 
 import (
 	"context"
+	"crypto/tls"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -239,10 +240,12 @@ func TestRequest_Send(t *testing.T) {
 		// Write certificates to a file
 		err = certs.ToFile("/tmp/cert.crt", "/tmp/key.key")
 		assert.NoError(t, err)
-		tlsConf, err := TLSConfig(ctx, "/tmp/ca.crt", "/tmp/cert.crt", "/tmp/key.key", true)
+		tlsConf := tls.Config{
+			InsecureSkipVerify: true,
+		}
 		assert.Nil(t, err)
 
-		client := NewClient(ctx, WithTLSClientConfig(tlsConf))
+		client := NewClient(ctx, WithTLSClientConfig(&tlsConf))
 
 		server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 

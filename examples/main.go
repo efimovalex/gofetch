@@ -25,7 +25,7 @@ func main() {
 	// Create a new client with custom logger
 	client := gohans.NewClient(ctx, gohans.WithLogger(logger))
 
-	u := url.URL{Scheme: "http", Host: "jsonplaceholder.typicode.com", Path: "todos/1"}
+	u := url.URL{Scheme: "https", Host: "jsonplaceholder.typicode.com", Path: "todos/1"}
 
 	var s success
 	var f fail
