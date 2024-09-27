@@ -1,5 +1,5 @@
 # Go HTTP Application Networking Simplified (GoHANS)
-![Hans meme](/../img /.img/image.jpg?raw=true "Hans..., get the data!")
+![Hans meme](/../img/.img/image.jpg?raw=true "Hans..., get the data!")
 
 GoHans (Go HTTP Application Networking Simplified) is a lightweight, concise, and robust Go library designed to make HTTP requests as effortless as asking "Hans..., get the data!".
 
